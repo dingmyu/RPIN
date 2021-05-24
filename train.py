@@ -90,7 +90,7 @@ def main():
     val_set = eval(f'{cfg.DATASET_ABS}')(data_root=cfg.DATA_ROOT, split='test', image_ext=cfg.RPIN.IMAGE_EXT)
     kwargs = {'pin_memory': True, 'num_workers': 16}
     train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=cfg.SOLVER.BATCH_SIZE, shuffle=True, **kwargs,
+        train_set, batch_size=cfg.SOLVER.BATCH_SIZE, shuffle=False, **kwargs,
     )
     val_loader = torch.utils.data.DataLoader(
         val_set, batch_size=1 if cfg.RPIN.VAE else cfg.SOLVER.BATCH_SIZE, shuffle=False, **kwargs,

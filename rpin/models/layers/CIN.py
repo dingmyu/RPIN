@@ -56,7 +56,7 @@ class InterNet(nn.Module):
         i2 = g_idx[..., [1], None, None].repeat(1, 1, dim, psz, psz)
         y2 = torch.gather(x1, 1, i2)
         r = torch.cat([y1, y2], dim=2)
-        r = r * g_idx[:, :, [2], None, None]
+        r = r.float() * g_idx[:, :, [2], None, None].float()
         r = r.reshape(-1, dim * 2, psz, psz)
         r = self.rel_dynamics(r)
         r = r.reshape(batch_size, num_objs, num_objs - 1, dim, psz, psz)

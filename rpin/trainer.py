@@ -49,6 +49,12 @@ class Trainer(object):
     def train_epoch(self):
         for batch_idx, (data, data_t, rois, gt_boxes, gt_masks, valid, g_idx, seq_l) in enumerate(self.train_loader):
             self._adjust_learning_rate()
+
+            if C.RPIN.ROI_MASKING or C.RPIN.ROI_CROPPING:
+                # data should be (b x t x o x c x h x w)
+                data = data.permute((0, 2, 1, 3, 4, 5))  # (b, o, t, c, h, w)
+                data = data.reshape((data.shape[0] * data.shape[1],) + data.shape[2:])  # (b*o, t, c, h, w)
+
             data, data_t = data.to(self.device), data_t.to(self.device)
             rois = xyxy_to_rois(rois, batch=data.shape[0], time_step=data.shape[1], num_devices=self.num_gpus)
             self.optim.zero_grad()
@@ -73,11 +79,12 @@ class Trainer(object):
             print_msg += f"{mean_loss:.3f} | "
             print_msg += f" | ".join(
                 ["{:.3f}".format(self.losses[name] * 1e3 / self.loss_cnt) for name in self.loss_name])
-            print_msg += f" | {self.fg_correct / self.fg_num:.3f} | {self.bg_correct / self.bg_num:.3f}"
+            # if C.RPIN.SEQ_CLS_LOSS_WEIGHT:
+            #     print_msg += f" | {self.fg_correct / self.fg_num:.3f} | {self.bg_correct / self.bg_num:.3f}"
             speed = self.loss_cnt / (timer() - self.time)
             eta = (self.max_iters - self.iterations) / speed / 3600
             print_msg += f" | speed: {speed:.1f} | eta: {eta:.2f} h"
-            print_msg += (" " * (os.get_terminal_size().columns - len(print_msg) - 10))
+            # print_msg += (" " * (os.get_terminal_size().columns - len(print_msg) - 10))
             tprint(print_msg)
 
             if self.iterations % self.val_interval == 0:
@@ -103,6 +110,11 @@ class Trainer(object):
         for batch_idx, (data, _, rois, gt_boxes, gt_masks, valid, g_idx, seq_l) in enumerate(self.val_loader):
             tprint(f'eval: {batch_idx}/{len(self.val_loader)}')
             with torch.no_grad():
+
+                if C.RPIN.ROI_MASKING or C.RPIN.ROI_CROPPING:
+                    # data should be (b x t x o x c x h x w)
+                    data = data.permute((0, 2, 1, 3, 4, 5))  # (b, o, t, c, h, w)
+                    data = data.reshape((data.shape[0] * data.shape[1],) + data.shape[2:])  # (b*o, t, c, h, w)
 
                 data = data.to(self.device)
                 rois = xyxy_to_rois(rois, batch=data.shape[0], time_step=data.shape[1], num_devices=self.num_gpus)
@@ -155,8 +167,9 @@ class Trainer(object):
             self.best_mean = mean_loss
 
         print_msg += f" | ".join(["{:.3f}".format(self.losses[name] * 1e3 / self.loss_cnt) for name in self.loss_name])
-        print_msg += f" | {self.fg_correct / (self.fg_num + 1e-9):.3f} | {self.bg_correct / (self.bg_num + 1e-9):.3f}"
-        print_msg += (" " * (os.get_terminal_size().columns - len(print_msg) - 10))
+        if C.RPIN.SEQ_CLS_LOSS_WEIGHT:
+            print_msg += f" | {self.fg_correct / (self.fg_num + 1e-9):.3f} | {self.bg_correct / (self.bg_num + 1e-9):.3f}"
+        # print_msg += (" " * (os.get_terminal_size().columns - len(print_msg) - 10))
         self.logger.info(print_msg)
 
     def loss(self, outputs, labels, phase):
@@ -233,7 +246,7 @@ class Trainer(object):
         init_tau = C.RPIN.DISCOUNT_TAU ** (1 / self.ptrain_size)
         tau = init_tau + (self.iterations / self.max_iters) * (1 - init_tau)
         tau = torch.pow(tau, torch.arange(pred_size, out=torch.FloatTensor()))[:, None].to('cuda')
-        loss = ((loss * tau) / tau.sum(axis=0, keepdims=True)).sum()
+        loss = ((loss * tau) / tau.sum((0), keepdim=True)).sum()
         loss = loss + mask_loss + kl_loss + seq_loss
 
         return loss

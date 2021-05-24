@@ -30,5 +30,5 @@ unzip outputs/phys/realb/rpcin.zip -d outputs/phys/realb/
 You can train your prediction model by:
 
 ```
-python train.py --cfg configs/realb/rpcin.yaml --gpus ${GPU_ID} --output ${OUTPUT_NAME}
+srun -p ad_lidar --gres=gpu:8 python train.py --cfg configs/realb/rpcin.yaml --gpus 0,1,2,3,4,5,6,7 --output output --init outputs/phys/realb/rpcin/ckpt_best.path.tar
 ```
